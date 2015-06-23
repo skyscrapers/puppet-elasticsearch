@@ -171,4 +171,7 @@ class elasticsearch::params {
     }
   }
 
+  $snapshot_type = 'fs'
+  $snapshot_script_path = '/usr/local/bin'
+
 }
