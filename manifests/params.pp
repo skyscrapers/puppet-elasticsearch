@@ -173,5 +173,8 @@ class elasticsearch::params {
 
   $snapshot_type = 'fs'
   $snapshot_script_path = '/usr/local/bin'
+  $snapshot_age = '14'
+  $cron_starthour = '2'
+  $cron_startminute = '0'
 
 }

@@ -32,12 +32,16 @@
 #     }
 #
 class elasticsearch::snapshot(
-  $name        = undef,
-  $type        = $elasticsearch::params::snapshot_type,
-  $location    = undef,
-  $bucket      = undef,
-  $region      = undef,
-  $script_path = $elasticsearch::params::snapshot_script_path,
+  $name             = undef,
+  $type             = $elasticsearch::params::snapshot_type,
+  $location         = undef,
+  $bucket           = undef,
+  $region           = undef,
+  $script_path      = $elasticsearch::params::snapshot_script_path,
+  $cronjob          = false,
+  $cron_starthour   = $elasticsearch::params::cron_starthour,
+  $cron_startminute = $elasticsearch::params::cron_startminute,
+  $snapshot_age     = $elasticsearch::params::snapshot_age,
   ){
 
   require elasticsearch::params
@@ -71,6 +75,17 @@ class elasticsearch::snapshot(
         mode   => '0755',
         owner  => elasticsearch,
         group  => elasticsearch;
+    }
+  }
+
+  if ( $cronjob == true ) {
+    file {
+      '/etc/cron.d/elasticsearch':
+        ensure  => file,
+        content => template('elasticsearch/etc/cron.d/elasticsearch.erb'),
+        owner   => root,
+        group   => root,
+        mode    => '0644';
     }
   }
 }
