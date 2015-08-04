@@ -29,13 +29,6 @@ describe "elasticsearch class:" do
       its(:content) { should match /[0-9]+/ }
     end
 
-    describe port(test_settings['port_a']) do
-      it {
-        sleep 15
-        should be_listening
-      }
-    end
-
     describe "Elasticsearch serves requests on" do
       it {
         curl_with_retries("check ES on #{test_settings['port_a']}", default, "http://localhost:#{test_settings['port_a']}/?pretty=true", 0)
@@ -47,10 +40,17 @@ describe "elasticsearch class:" do
       it { should contain 'name: elasticsearch001' }
     end
 
-    describe file('/etc/elasticsearch/templates_import') do
+    describe file('/usr/share/elasticsearch/templates_import') do
       it { should be_directory }
     end
 
+    describe file('/usr/share/elasticsearch/scripts') do
+      it { should be_directory }
+    end
+
+    describe file('/etc/elasticsearch/es-01/scripts') do
+      it { should be_symlink }
+    end
 
   end
 
@@ -93,19 +93,6 @@ describe "elasticsearch class:" do
       its(:content) { should match /[0-9]+/ }
     end
 
-    describe port(test_settings['port_a']) do
-      it {
-        should be_listening
-      }
-    end
-
-    describe port(test_settings['port_b']) do
-      it {
-        sleep 10
-        should be_listening
-      }
-    end
-
     describe "make sure elasticsearch can serve requests #{test_settings['port_a']}" do
       it {
         curl_with_retries("check ES on #{test_settings['port_a']}", default, "http://localhost:#{test_settings['port_a']}/?pretty=true", 0)
@@ -128,6 +115,18 @@ describe "elasticsearch class:" do
       it { should contain 'name: elasticsearch002' }
     end
 
+    describe file('/usr/share/elasticsearch/scripts') do
+      it { should be_directory }
+    end
+
+    describe file('/etc/elasticsearch/es-01/scripts') do
+      it { should be_symlink }
+    end
+
+    describe file('/etc/elasticsearch/es-02/scripts') do
+      it { should be_symlink }
+    end
+
   end
 
 
@@ -146,12 +145,6 @@ describe "elasticsearch class:" do
       it { should_not be_directory }
     end
 
-    describe port(test_settings['port_a']) do
-      it {
-        should_not be_listening
-      }
-    end
-
     describe service(test_settings['service_name_a']) do
       it { should_not be_enabled }
       it { should_not be_running }
@@ -167,13 +160,6 @@ describe "elasticsearch class:" do
       its(:content) { should match /[0-9]+/ }
     end
 
-    describe port(test_settings['port_b']) do
-      it {
-        sleep 10
-        should be_listening
-      }
-    end
-
     describe "make sure elasticsearch can serve requests #{test_settings['port_b']}" do
       it {
         curl_with_retries("check ES on #{test_settings['port_b']}", default, "http://localhost:#{test_settings['port_b']}/?pretty=true", 0)
@@ -183,6 +169,27 @@ describe "elasticsearch class:" do
     describe file('/etc/elasticsearch/es-02/elasticsearch.yml') do
       it { should be_file }
       it { should contain 'name: elasticsearch002' }
+    end
+
+  end
+
+  describe "Cleanup" do
+
+    it 'should run successfully' do
+      pp = "class { 'elasticsearch': ensure => 'absent' }
+            elasticsearch::instance{ 'es-02': ensure => 'absent' }
+           "
+
+      apply_manifest(pp, :catch_failures => true)
+    end
+
+    describe file('/etc/elasticsearch/es-02') do
+      it { should_not be_directory }
+    end
+
+    describe service(test_settings['service_name_b']) do
+      it { should_not be_enabled }
+      it { should_not be_running }
     end
 
   end

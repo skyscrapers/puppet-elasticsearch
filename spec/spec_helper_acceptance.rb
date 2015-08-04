@@ -1,6 +1,7 @@
 require 'beaker-rspec'
 require 'pry'
 require 'securerandom'
+require_relative 'spec_acceptance_integration'
 
 def test_settings
   RSpec.configuration.test_settings
@@ -27,6 +28,7 @@ else
 end
 
 hosts.each do |host|
+
   # Install Puppet
   if host.is_pe?
     install_pe
@@ -40,25 +42,47 @@ hosts.each do |host|
       on host, "#{gem_proxy} gem install ruby-augeas --no-ri --no-rdoc"
     end
 
+    if host[:type] == 'aio'
+      on host, "mkdir -p /var/log/puppetlabs/puppet"
+    end
+
   end
 
-  case fact('osfamily')
-    when 'RedHat'
-      scp_to(host, "#{files_dir}/elasticsearch-1.3.1.noarch.rpm", '/tmp/elasticsearch-1.3.1.noarch.rpm')
-    when 'Debian'
-      case fact('lsbmajdistrelease')
-        when '6'
-          scp_to(host, "#{files_dir}/elasticsearch-1.1.0.deb", '/tmp/elasticsearch-1.1.0.deb')
-        else
-          scp_to(host, "#{files_dir}/elasticsearch-1.3.1.deb", '/tmp/elasticsearch-1.3.1.deb')
-      end
-    when 'Suse'
-      case fact('operatingsystem')
-        when 'OpenSuSE'
-          scp_to(host, "#{files_dir}/elasticsearch-1.1.0.noarch.rpm", '/tmp/elasticsearch-1.1.0.noarch.rpm')
-        else
-          scp_to(host, "#{files_dir}/elasticsearch-1.3.1.noarch.rpm", '/tmp/elasticsearch-1.3.1.noarch.rpm')
-      end
+  if ENV['ES_VERSION']
+
+    case fact('osfamily')
+      when 'RedHat'
+        ext='noarch.rpm'
+      when 'Debian'
+        ext='deb'
+      when  'Suse'
+        ext='noarch.rpm'
+    end
+
+    url = get_url
+    RSpec.configuration.test_settings['snapshot_package'] = url.gsub('$EXT$', ext)
+
+  else
+
+    case fact('osfamily')
+      when 'RedHat'
+        scp_to(host, "#{files_dir}/elasticsearch-1.3.1.noarch.rpm", '/tmp/elasticsearch-1.3.1.noarch.rpm')
+      when 'Debian'
+        case fact('lsbmajdistrelease')
+          when '6'
+            scp_to(host, "#{files_dir}/elasticsearch-1.1.0.deb", '/tmp/elasticsearch-1.1.0.deb')
+          else
+            scp_to(host, "#{files_dir}/elasticsearch-1.3.1.deb", '/tmp/elasticsearch-1.3.1.deb')
+        end
+      when 'Suse'
+        case fact('operatingsystem')
+          when 'OpenSuSE'
+            scp_to(host, "#{files_dir}/elasticsearch-1.3.1.noarch.rpm", '/tmp/elasticsearch-1.3.1.noarch.rpm')
+        end
+    end
+
+    scp_to(host, "#{files_dir}/elasticsearch-bigdesk.zip", "/tmp/elasticsearch-bigdesk.zip")
+
   end
 
   # on debian/ubuntu nodes ensure we get the latest info
@@ -82,20 +106,35 @@ RSpec.configure do |c|
     puppet_module_install(:source => proj_root, :module_name => 'elasticsearch')
     hosts.each do |host|
 
-      if !host.is_pe?
-        scp_to(host, "#{files_dir}/puppetlabs-stdlib-3.2.0.tar.gz", '/tmp/puppetlabs-stdlib-3.2.0.tar.gz')
-        on host, puppet('module','install','/tmp/puppetlabs-stdlib-3.2.0.tar.gz'), { :acceptable_exit_codes => [0,1] }
-      end
+      copy_hiera_data_to(host, 'spec/fixtures/hiera/hieradata/')
+      on host, puppet('module','install','puppetlabs-java'), { :acceptable_exit_codes => [0,1] }
+
       if fact('osfamily') == 'Debian'
-        scp_to(host, "#{files_dir}/puppetlabs-apt-1.4.2.tar.gz", '/tmp/puppetlabs-apt-1.4.2.tar.gz')
-        on host, puppet('module','install','/tmp/puppetlabs-apt-1.4.2.tar.gz'), { :acceptable_exit_codes => [0,1] }
+        on host, puppet('module','install','puppetlabs-apt', '--version=1.8.0'), { :acceptable_exit_codes => [0,1] }
       end
       if fact('osfamily') == 'Suse'
         on host, puppet('module','install','darin-zypprepo'), { :acceptable_exit_codes => [0,1] }
       end
+      if fact('osfamily') == 'RedHat'
+        on host, puppet('module', 'upgrade', 'puppetlabs-stdlib'), {  :acceptable_exit_codes => [0,1] }
+        on host, puppet('module', 'install', 'ceritsc-yum'), { :acceptable_exit_codes => [0,1] }
+      end
 
+    on(host, 'mkdir -p etc/puppet/modules/another/files/')
     end
   end
+
+  c.after :suite do
+    if ENV['ES_VERSION']
+      hosts.each do |host|
+        timestamp = Time.now
+        log_dir = File.join('./spec/logs', timestamp.strftime("%F_%H_%M_%S"))
+        FileUtils.mkdir_p(log_dir) unless File.directory?(log_dir)
+        scp_from(host, '/var/log/elasticsearch', log_dir)
+      end
+    end
+  end
+
 end
 
 require_relative 'spec_acceptance_common'

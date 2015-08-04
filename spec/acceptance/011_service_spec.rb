@@ -6,7 +6,7 @@ describe "Service tests:" do
 
     context "Change the defaults file" do
       it 'should run successfully' do
-        pp = "class { 'elasticsearch': manage_repo => true, repo_version => '#{test_settings['repo_version']}', java_install => true, config => { 'cluster.name' => '#{test_settings['cluster_name']}' }, init_defaults => { 'ES_USER' => 'root', 'ES_JAVA_OPTS' => '\"-server -XX:+UseTLAB -XX:+CMSClassUnloadingEnabled\"' } }
+        pp = "class { 'elasticsearch': manage_repo => true, repo_version => '#{test_settings['repo_version']}', java_install => true, config => { 'cluster.name' => '#{test_settings['cluster_name']}' }, init_defaults => { 'ES_JAVA_OPTS' => '\"-server -XX:+UseTLAB -XX:+CMSClassUnloadingEnabled\"' } }
               elasticsearch::instance { 'es-01': config => { 'node.name' => 'elasticsearch001' } }
              "
 
@@ -29,13 +29,6 @@ describe "Service tests:" do
         its(:content) { should match /[0-9]+/ }
       end
 
-      describe port(test_settings['port_a']) do
-        it {
-          sleep 15
-          should be_listening
-        }
-      end
-
       describe file('/etc/elasticsearch/es-01/elasticsearch.yml') do
         it { should be_file }
         it { should contain 'name: elasticsearch001' }
@@ -50,9 +43,7 @@ describe "Service tests:" do
       context "Make sure we have ES_USER=root" do
 
         describe file(test_settings['defaults_file_a']) do
-          its(:content) { should match /^ES_USER=root/ }
           its(:content) { should match /^ES_JAVA_OPTS="-server -XX:\+UseTLAB -XX:\+CMSClassUnloadingEnabled"/ }
-          its(:content) { should_not match /^ES_USER=elasticsearch/ }
         end
 
       end
@@ -73,12 +64,6 @@ describe "Service tests:" do
 
     describe file('/etc/elasticsearch/es-01') do
       it { should_not be_directory }
-    end
-
-    describe port(test_settings['port_a']) do
-      it {
-        should_not be_listening
-      }
     end
 
     describe service(test_settings['service_name_a']) do
