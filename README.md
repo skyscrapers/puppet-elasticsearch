@@ -41,7 +41,9 @@ This module has been tested against ES 1.0 and up.
 ###Requirements
 
 * The [stdlib](https://forge.puppetlabs.com/puppetlabs/stdlib) Puppet library.
-* Augeas
+* [ceritsc/yum](https://forge.puppetlabs.com/ceritsc/yum) For yum version lock.
+* [richardc/datacat](https://forge.puppetlabs.com/richardc/datacat)
+* [Augeas](http://augeas.net/)
 
 #### Repository management
 When using the repository management you will need the following dependency modules:
@@ -64,7 +66,7 @@ class { 'elasticsearch':
 Note: This will only work when using the repository.
 
 ####Automatic upgrade of the software ( default set to false )
-```
+```puppet
 class { 'elasticsearch':
   autoupgrade => true
 }
@@ -163,7 +165,7 @@ Please note that this does not work when you specify 'latest' as a version numbe
 ###Scripts
 
 Install [scripts](http://www.elastic.co/guide/en/elasticsearch/reference/current/modules-scripting.html) to be used by Elasticsearch.
-These scripts are shared accross all defined instances on the same host.
+These scripts are shared across all defined instances on the same host.
 
 ```puppet
 elasticsearch::script { 'myscript':

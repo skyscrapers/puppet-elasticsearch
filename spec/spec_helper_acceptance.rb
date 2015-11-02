@@ -52,11 +52,15 @@ hosts.each do |host|
 
     case fact('osfamily')
       when 'RedHat'
-        ext='noarch.rpm'
+        if ENV['ES_VERSION'][0,1] == '1'
+          ext='noarch.rpm'
+        else
+          ext='rpm'
+        end
       when 'Debian'
         ext='deb'
       when  'Suse'
-        ext='noarch.rpm'
+        ext='rpm'
     end
 
     url = get_url
@@ -90,6 +94,9 @@ hosts.each do |host|
   if fact('osfamily') == 'Debian'
     on host, "apt-get update"
   end
+  if fact('osfamily') == 'RedHat'
+    on host, "yum -y update"
+  end
 
 end
 
@@ -108,6 +115,7 @@ RSpec.configure do |c|
 
       copy_hiera_data_to(host, 'spec/fixtures/hiera/hieradata/')
       on host, puppet('module','install','puppetlabs-java'), { :acceptable_exit_codes => [0,1] }
+      on host, puppet('module','install','richardc-datacat'), { :acceptable_exit_codes => [0,1] }
 
       if fact('osfamily') == 'Debian'
         on host, puppet('module','install','puppetlabs-apt', '--version=1.8.0'), { :acceptable_exit_codes => [0,1] }

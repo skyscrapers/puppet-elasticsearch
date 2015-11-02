@@ -108,7 +108,7 @@ define elasticsearch::plugin(
   }
   elsif ($elasticsearch::proxy_url != undef) {
     $proxy_host_from_url = regsubst($elasticsearch::proxy_url, '(http|https)://([^:]+)(|:\d+).+', '\2')
-    $proxy_port_from_url = regsubst($elasticsearch::proxy_url, '(http|https)://([^:]+)?(:(\d+)).+', '\4')
+    $proxy_port_from_url = regsubst($elasticsearch::proxy_url, '(?:http|https)://[^:/]+(?::([0-9]+))?(?:/.*)?', '\1')
     
     # validate parsed values before using them
     if (is_string($proxy_host_from_url) and is_integer($proxy_port_from_url)) {
@@ -162,7 +162,7 @@ define elasticsearch::plugin(
       }
       file {$name_file_path:
         ensure  => file,
-        content => $name,
+        content => "${name}", # lint:ignore:only_variable_string
         require => Exec["install_plugin_${name}"],
       }
     }
