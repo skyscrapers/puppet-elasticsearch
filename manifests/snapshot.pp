@@ -49,12 +49,13 @@ class elasticsearch::snapshot(
 
   if ($type == 'fs') {
     $settings = "{\"location\": \"${location}\",\"compress\": true}"
-  } elsif ($type == 's3') {
+  }
+  elsif ($type == 's3') {
     if ($base_path) {
       $settings = "{\"bucket\": \"${bucket}\",\"region\": \"${region}\",\"base_path\": \"${base_path}\"}"
-    } else {
-      $settings = "{\"bucket\": \"${bucket}\",\"region\": \"${region}\"}"
     }
+    else {
+      $settings = "{\"bucket\": \"${bucket}\",\"region\": \"${region}\"}"
     }
   }
 
