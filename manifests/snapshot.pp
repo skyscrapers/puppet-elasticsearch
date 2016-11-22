@@ -37,6 +37,7 @@ class elasticsearch::snapshot(
   $location         = undef,
   $bucket           = undef,
   $region           = undef,
+  $base_path        = undef,
   $script_path      = $elasticsearch::params::snapshot_script_path,
   $cronjob          = false,
   $cron_starthour   = $elasticsearch::params::cron_starthour,
@@ -49,7 +50,11 @@ class elasticsearch::snapshot(
   if ($type == 'fs') {
     $settings = "{\"location\": \"${location}\",\"compress\": true}"
   } elsif ($type == 's3') {
-    $settings = "{\"bucket\": \"${bucket}\",\"region\": \"${region}\"}"
+    if ($base_path) {
+      $settings = "{\"bucket\": \"${bucket}\",\"region\": \"${region}\",\"base_path\": \"${base_path}\"}"
+    } else
+      $settings = "{\"bucket\": \"${bucket}\",\"region\": \"${region}\"}"
+    }
   }
 
   exec { 'Add snapshot to elasticsearch':
