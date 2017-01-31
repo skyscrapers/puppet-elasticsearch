@@ -203,7 +203,7 @@ define oldelasticsearch::instance(
       command => "mkdir -p ${dirs}",
       creates => $instance_datadir,
       require => Class['oldelasticsearch::package'],
-      before  => Elasticsearch::Service[$name],
+      before  => Oldelasticsearch::Service[$name],
     }
 
     file { $instance_datadir:
