@@ -1,4 +1,4 @@
-# == Define: elasticsearch::service::systemd
+# == Define: oldelasticsearch::service::systemd
 #
 # This define exists to coordinate all service management related actions,
 # functionality and logical units in a central place.
@@ -54,9 +54,9 @@
 #
 # * Richard Pijnenburg <mailto:richard.pijnenburg@elasticsearch.com>
 #
-define elasticsearch::service::systemd(
-  $ensure             = $elasticsearch::ensure,
-  $status             = $elasticsearch::status,
+define oldelasticsearch::service::systemd(
+  $ensure             = $oldelasticsearch::ensure,
+  $status             = $oldelasticsearch::status,
   $init_defaults_file = undef,
   $init_defaults      = undef,
   $init_template      = undef,
@@ -103,7 +103,7 @@ define elasticsearch::service::systemd(
     $service_enable = false
   }
 
-  $notify_service = $elasticsearch::restart_on_change ? {
+  $notify_service = $oldelasticsearch::restart_on_change ? {
     true  => [ Exec["systemd_reload_${name}"], Service["elasticsearch-instance-${name}"] ],
     false => Exec["systemd_reload_${name}"]
   }
@@ -112,7 +112,7 @@ define elasticsearch::service::systemd(
 
     # defaults file content. Either from a hash or file
     if ($init_defaults_file != undef) {
-      file { "${elasticsearch::params::defaults_location}/elasticsearch-${name}":
+      file { "${oldelasticsearch::params::defaults_location}/elasticsearch-${name}":
         ensure => $ensure,
         source => $init_defaults_file,
         owner  => 'root',
@@ -126,16 +126,16 @@ define elasticsearch::service::systemd(
       if ($init_defaults != undef and is_hash($init_defaults) ) {
 
         if(has_key($init_defaults, 'ES_USER')) {
-          if($init_defaults['ES_USER'] != $elasticsearch::elasticsearch_user) {
+          if($init_defaults['ES_USER'] != $oldelasticsearch::elasticsearch_user) {
             fail('Found ES_USER setting for init_defaults but is not same as elasticsearch_user setting. Please use elasticsearch_user setting.')
           }
         }
       }
-      $init_defaults_pre_hash = { 'ES_USER' => $elasticsearch::elasticsearch_user, 'ES_GROUP' => $elasticsearch::elasticsearch_group, 'MAX_OPEN_FILES' => '65535' }
+      $init_defaults_pre_hash = { 'ES_USER' => $oldelasticsearch::elasticsearch_user, 'ES_GROUP' => $oldelasticsearch::elasticsearch_group, 'MAX_OPEN_FILES' => '65535' }
       $new_init_defaults = merge($init_defaults_pre_hash, $init_defaults)
 
       augeas { "defaults_${name}":
-        incl    => "${elasticsearch::params::defaults_location}/elasticsearch-${name}",
+        incl    => "${oldelasticsearch::params::defaults_location}/elasticsearch-${name}",
         lens    => 'Shellvars.lns',
         changes => template("${module_name}/etc/sysconfig/defaults.erb"),
         before  => Service["elasticsearch-instance-${name}"],
@@ -146,10 +146,10 @@ define elasticsearch::service::systemd(
     # init file from template
     if ($init_template != undef) {
 
-      $user              = $elasticsearch::elasticsearch_user
-      $group             = $elasticsearch::elasticsearch_group
-      $pid_dir           = $elasticsearch::pid_dir
-      $defaults_location = $elasticsearch::defaults_location
+      $user              = $oldelasticsearch::elasticsearch_user
+      $group             = $oldelasticsearch::elasticsearch_group
+      $pid_dir           = $oldelasticsearch::pid_dir
+      $defaults_location = $oldelasticsearch::defaults_location
 
       if ($new_init_defaults != undef and is_hash($new_init_defaults) and has_key($new_init_defaults, 'MAX_OPEN_FILES')) {
         $nofile = $new_init_defaults['MAX_OPEN_FILES']
@@ -182,7 +182,7 @@ define elasticsearch::service::systemd(
       notify    => Exec["systemd_reload_${name}"],
     }
 
-    file { "${elasticsearch::params::defaults_location}/elasticsearch-${name}":
+    file { "${oldelasticsearch::params::defaults_location}/elasticsearch-${name}":
       ensure    => 'absent',
       subscribe => Service["elasticsearch-instance-${name}"],
       notify    => Exec["systemd_reload_${name}"],
@@ -204,9 +204,9 @@ define elasticsearch::service::systemd(
       ensure     => $service_ensure,
       enable     => $service_enable,
       name       => "elasticsearch-${name}.service",
-      hasstatus  => $elasticsearch::params::service_hasstatus,
-      hasrestart => $elasticsearch::params::service_hasrestart,
-      pattern    => $elasticsearch::params::service_pattern,
+      hasstatus  => $oldelasticsearch::params::service_hasstatus,
+      hasrestart => $oldelasticsearch::params::service_hasrestart,
+      pattern    => $oldelasticsearch::params::service_pattern,
       provider   => 'systemd',
       require    => $service_require,
     }
