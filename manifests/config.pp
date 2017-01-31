@@ -91,7 +91,7 @@ class oldelasticsearch::config {
         $group = $oldelasticsearch::elasticsearch_group
         $pid_dir = $oldelasticsearch::params::pid_dir
 
-        file { '/usr/lib/tmpfiles.d/oldelasticsearch.conf':
+        file { '/usr/lib/tmpfiles.d/elasticsearch.conf':
           ensure  => 'file',
           content => template("${module_name}/usr/lib/tmpfiles.d/elasticsearch.conf.erb"),
           owner   => 'root',
