@@ -1,9 +1,9 @@
-# == Define: elasticsearch::plugin
+# == Define: oldelasticsearch::plugin
 #
 # This define allows you to install arbitrary Elasticsearch plugins
 # either by using the default repositories or by specifying an URL
 #
-# All default values are defined in the elasticsearch::params class.
+# All default values are defined in the oldelasticsearch::params class.
 #
 #
 # === Parameters
@@ -67,7 +67,7 @@
 # * Dennis Konert <mailto:dkonert@gmail.com>
 # * Richard Pijnenburg <mailto:richard.pijnenburg@elasticsearch.com>
 #
-define elasticsearch::plugin(
+define oldelasticsearch::plugin(
     $instances,
     $module_dir  = undef,
     $ensure      = 'present',
@@ -77,20 +77,20 @@ define elasticsearch::plugin(
     $proxy_port  = undef,
 ) {
 
-  include elasticsearch
+  include oldelasticsearch
 
   Exec {
     path      => [ '/bin', '/usr/bin', '/usr/local/bin' ],
     cwd       => '/',
-    user      => $elasticsearch::elasticsearch_user,
+    user      => $oldelasticsearch::elasticsearch_user,
     tries     => 6,
     try_sleep => 10,
     timeout   => 600,
   }
 
-  $notify_service = $elasticsearch::restart_on_change ? {
+  $notify_service = $oldelasticsearch::restart_on_change ? {
     false   => undef,
-    default => Elasticsearch::Service[$instances],
+    default => Oldelasticsearch::Service[$instances],
   }
 
   if ($module_dir != undef) {
@@ -101,14 +101,14 @@ define elasticsearch::plugin(
   }
 
   # set proxy by override or parse and use proxy_url from
-  # elasticsearch::proxy_url or use no proxy at all
+  # oldelasticsearch::proxy_url or use no proxy at all
   
   if ($proxy_host != undef and $proxy_port != undef) {
     $proxy = " -DproxyPort=${proxy_port} -DproxyHost=${proxy_host}"
   }
-  elsif ($elasticsearch::proxy_url != undef) {
-    $proxy_host_from_url = regsubst($elasticsearch::proxy_url, '(http|https)://([^:]+)(|:\d+).+', '\2')
-    $proxy_port_from_url = regsubst($elasticsearch::proxy_url, '(?:http|https)://[^:/]+(?::([0-9]+))?(?:/.*)?', '\1')
+  elsif ($oldelasticsearch::proxy_url != undef) {
+    $proxy_host_from_url = regsubst($oldelasticsearch::proxy_url, '(http|https)://([^:]+)(|:\d+).+', '\2')
+    $proxy_port_from_url = regsubst($oldelasticsearch::proxy_url, '(?:http|https)://[^:/]+(?::([0-9]+))?(?:/.*)?', '\1')
     
     # validate parsed values before using them
     if (is_string($proxy_host_from_url) and is_integer($proxy_port_from_url)) {
@@ -138,27 +138,27 @@ define elasticsearch::plugin(
   }
 
   if ($real_url == undef) {
-    $install_cmd = "${elasticsearch::plugintool}${proxy} install ${name}"
+    $install_cmd = "${oldelasticsearch::plugintool}${proxy} install ${name}"
     $exec_rets = [0,]
   } else {
-    $install_cmd = "${elasticsearch::plugintool}${proxy} install ${name} --url ${real_url}"
+    $install_cmd = "${oldelasticsearch::plugintool}${proxy} install ${name} --url ${real_url}"
     $exec_rets = [0,1]
   }
 
   case $ensure {
     'installed', 'present': {
-      $name_file_path = "${elasticsearch::plugindir}/${plugin_dir}/.name"
+      $name_file_path = "${oldelasticsearch::plugindir}/${plugin_dir}/.name"
       exec {"purge_plugin_${plugin_dir}_old":
-        command => "${elasticsearch::plugintool} --remove ${plugin_dir}",
-        onlyif  => "test -e ${elasticsearch::plugindir}/${plugin_dir} && test \"$(cat ${name_file_path})\" != '${name}'",
+        command => "${oldelasticsearch::plugintool} --remove ${plugin_dir}",
+        onlyif  => "test -e ${oldelasticsearch::plugindir}/${plugin_dir} && test \"$(cat ${name_file_path})\" != '${name}'",
         before  => Exec["install_plugin_${name}"],
       }
       exec {"install_plugin_${name}":
         command => $install_cmd,
-        creates => "${elasticsearch::plugindir}/${plugin_dir}",
+        creates => "${oldelasticsearch::plugindir}/${plugin_dir}",
         returns => $exec_rets,
         notify  => $notify_service,
-        require => File[$elasticsearch::plugindir],
+        require => File[$oldelasticsearch::plugindir],
       }
       file {$name_file_path:
         ensure  => file,
@@ -168,8 +168,8 @@ define elasticsearch::plugin(
     }
     'absent': {
       exec {"remove_plugin_${name}":
-        command => "${elasticsearch::plugintool} --remove ${plugin_dir}",
-        onlyif  => "test -d ${elasticsearch::plugindir}/${plugin_dir}",
+        command => "${oldelasticsearch::plugintool} --remove ${plugin_dir}",
+        onlyif  => "test -d ${oldelasticsearch::plugindir}/${plugin_dir}",
         notify  => $notify_service,
       }
     }

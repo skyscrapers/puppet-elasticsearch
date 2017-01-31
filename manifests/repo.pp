@@ -1,4 +1,4 @@
-# == Class: elasticsearch::repo
+# == Class: oldelasticsearch::repo
 #
 # This class exists to install and manage yum and apt repositories
 # that contain elasticsearch official elasticsearch packages
@@ -12,7 +12,7 @@
 # === Examples
 #
 # This class may be imported by other classes to use its functionality:
-#   class { 'elasticsearch::repo': }
+#   class { 'oldelasticsearch::repo': }
 #
 # It is not intended to be used directly by external resources like node
 # definitions or other modules.
@@ -23,7 +23,7 @@
 # * Phil Fenstermacher <mailto:phillip.fenstermacher@gmail.com>
 # * Richard Pijnenburg <mailto:richard.pijnenburg@elasticsearch.com>
 #
-class elasticsearch::repo {
+class oldelasticsearch::repo {
 
   Exec {
     path      => [ '/bin', '/usr/bin', '/usr/local/bin' ],
@@ -37,7 +37,7 @@ class elasticsearch::repo {
       }
 
       apt::source { 'elasticsearch':
-        location    => "http://packages.elastic.co/elasticsearch/${elasticsearch::repo_version}/debian",
+        location    => "http://packages.elastic.co/elasticsearch/${oldelasticsearch::repo_version}/debian",
         release     => 'stable',
         repos       => 'main',
         key         => 'D88E42B4',
@@ -48,7 +48,7 @@ class elasticsearch::repo {
     'RedHat', 'Linux': {
       yumrepo { 'elasticsearch':
         descr    => 'elasticsearch repo',
-        baseurl  => "http://packages.elastic.co/elasticsearch/${elasticsearch::repo_version}/centos",
+        baseurl  => "http://packages.elastic.co/elasticsearch/${oldelasticsearch::repo_version}/centos",
         gpgcheck => 1,
         gpgkey   => 'http://packages.elastic.co/GPG-KEY-elasticsearch',
         enabled  => 1,
@@ -62,7 +62,7 @@ class elasticsearch::repo {
       }
 
       zypprepo { 'elasticsearch':
-        baseurl     => "http://packages.elastic.co/elasticsearch/${elasticsearch::repo_version}/centos",
+        baseurl     => "http://packages.elastic.co/elasticsearch/${oldelasticsearch::repo_version}/centos",
         enabled     => 1,
         autorefresh => 1,
         name        => 'elasticsearch',
@@ -77,23 +77,23 @@ class elasticsearch::repo {
   }
 
   # Package pinning
-  if ($elasticsearch::package_pin == true and $elasticsearch::version != false) {
+  if ($oldelasticsearch::package_pin == true and $oldelasticsearch::version != false) {
     case $::osfamily {
       'Debian': {
         if !defined(Class['apt']) {
           class { 'apt': }
         }
 
-        apt::pin { $elasticsearch::package_name:
+        apt::pin { $oldelasticsearch::package_name:
           ensure   => 'present',
-          packages => $elasticsearch::package_name,
-          version  => $elasticsearch::real_version,
+          packages => $oldelasticsearch::package_name,
+          version  => $oldelasticsearch::real_version,
           priority => 1000,
         }
       }
       'RedHat', 'Linux': {
 
-        yum::versionlock { "0:elasticsearch-${elasticsearch::real_version}.noarch":
+        yum::versionlock { "0:elasticsearch-${oldelasticsearch::real_version}.noarch":
           ensure => 'present',
         }
       }

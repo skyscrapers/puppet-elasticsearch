@@ -1,4 +1,4 @@
-# == Class: elasticsearch::service
+# == Class: oldelasticsearch::service
 #
 # This class exists to coordinate all service management related actions,
 # functionality and logical units in a central place.
@@ -54,18 +54,18 @@
 #
 # * Richard Pijnenburg <mailto:richard.pijnenburg@elasticsearch.com>
 #
-define elasticsearch::service(
-  $ensure             = $elasticsearch::ensure,
-  $status             = $elasticsearch::status,
+define oldelasticsearch::service(
+  $ensure             = $oldelasticsearch::ensure,
+  $status             = $oldelasticsearch::status,
   $init_defaults_file = undef,
   $init_defaults      = undef,
   $init_template      = undef,
 ) {
 
-  case $elasticsearch::real_service_provider {
+  case $oldelasticsearch::real_service_provider {
 
     'init': {
-      elasticsearch::service::init { $name:
+      oldelasticsearch::service::init { $name:
         ensure             => $ensure,
         status             => $status,
         init_defaults_file => $init_defaults_file,
@@ -74,7 +74,7 @@ define elasticsearch::service(
       }
     }
     'systemd': {
-      elasticsearch::service::systemd { $name:
+      oldelasticsearch::service::systemd { $name:
         ensure             => $ensure,
         status             => $status,
         init_defaults_file => $init_defaults_file,
@@ -83,7 +83,7 @@ define elasticsearch::service(
       }
     }
     default: {
-      fail("Unknown service provider ${elasticsearch::real_service_provider}")
+      fail("Unknown service provider ${oldelasticsearch::real_service_provider}")
     }
 
   }

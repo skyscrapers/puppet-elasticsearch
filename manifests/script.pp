@@ -1,4 +1,4 @@
-# == Define: elasticsearch::script
+# == Define: oldelasticsearch::script
 #
 #  This define allows you to insert, update or delete scripts that are used within Elasticsearch
 #
@@ -28,12 +28,12 @@
 #
 # * Richard Pijnenburg <mailto:richard.pijnenburg@elasticsearch.com>
 #
-define elasticsearch::script(
+define oldelasticsearch::script(
   $source,
   $ensure  = 'present',
 ) {
 
-  require elasticsearch
+  require oldelasticsearch
 
   # ensure
   if ! ($ensure in [ 'present', 'absent' ]) {
@@ -45,11 +45,11 @@ define elasticsearch::script(
   $filenameArray = split($source, '/')
   $basefilename = $filenameArray[-1]
 
-  file { "${elasticsearch::params::homedir}/scripts/${basefilename}":
+  file { "${oldelasticsearch::params::homedir}/scripts/${basefilename}":
     ensure => $ensure,
     source => $source,
-    owner  => $elasticsearch::elasticsearch_user,
-    group  => $elasticsearch::elasticsearch_group,
+    owner  => $oldelasticsearch::elasticsearch_user,
+    group  => $oldelasticsearch::elasticsearch_group,
     mode   => '0644',
   }
 }

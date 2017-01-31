@@ -1,7 +1,7 @@
 {
-  "name": "elasticsearch-elasticsearch",
+  "name": "skyscrapers-oldelasticsearch",
   "version": "0.9.9",
-  "source": "https://github.com/elastic/puppet-elasticsearch",
+  "source": "https://github.com/skyscrapers/puppet-elasticsearch",
   "author": "elasticsearch",
   "license": "Apache-2.0",
   "summary": "Module for managing and configuring Elasticsearch nodes",

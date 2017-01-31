@@ -1,4 +1,4 @@
-# == Class: elasticsearch::snapshot
+# == Class: oldelasticsearch::snapshot
 #
 # This class is able to activate snapshots for elasticsearch
 #
@@ -31,21 +31,21 @@
 #       script_path => '/root'
 #     }
 #
-class elasticsearch::snapshot(
+class oldelasticsearch::snapshot(
   $name             = undef,
-  $type             = $elasticsearch::params::snapshot_type,
+  $type             = $oldelasticsearch::params::snapshot_type,
   $location         = undef,
   $bucket           = undef,
   $region           = undef,
   $base_path        = undef,
-  $script_path      = $elasticsearch::params::snapshot_script_path,
+  $script_path      = $oldelasticsearch::params::snapshot_script_path,
   $cronjob          = false,
-  $cron_starthour   = $elasticsearch::params::cron_starthour,
-  $cron_startminute = $elasticsearch::params::cron_startminute,
-  $snapshot_age     = $elasticsearch::params::snapshot_age,
+  $cron_starthour   = $oldelasticsearch::params::cron_starthour,
+  $cron_startminute = $oldelasticsearch::params::cron_startminute,
+  $snapshot_age     = $oldelasticsearch::params::snapshot_age,
   ){
 
-  require elasticsearch::params
+  require oldelasticsearch::params
 
   if ($type == 'fs') {
     $settings = "{\"location\": \"${location}\",\"compress\": true}"
@@ -69,7 +69,7 @@ class elasticsearch::snapshot(
   file {
     "${script_path}/elasticsearch_backup.py":
       ensure => file,
-      source => 'puppet:///modules/elasticsearch/usr/local/bin/elasticsearch_backup.py',
+      source => "puppet:///modules/${module_name}/usr/local/bin/elasticsearch_backup.py",
       owner => root,
       group => root,
       mode => '0775';
@@ -89,7 +89,7 @@ class elasticsearch::snapshot(
     file {
       '/etc/cron.d/elasticsearch':
         ensure  => file,
-        content => template('elasticsearch/etc/cron.d/elasticsearch.erb'),
+        content => template("${module_name}/etc/cron.d/elasticsearch.erb"),
         owner   => root,
         group   => root,
         mode    => '0644';

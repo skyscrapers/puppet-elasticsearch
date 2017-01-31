@@ -1,4 +1,4 @@
-# == Class: elasticsearch
+# == Class: oldelasticsearch
 #
 # This class is able to install or remove elasticsearch on a node.
 # It manages the status of the related service.
@@ -174,22 +174,22 @@
 #   package upgrades.
 #   Defaults to: true
 #
-# The default values for the parameters are set in elasticsearch::params. Have
+# The default values for the parameters are set in oldelasticsearch::params. Have
 # a look at the corresponding <tt>params.pp</tt> manifest file if you need more
 # technical information about them.
 #
 # === Examples
 #
 # * Installation, make sure service is running and will be started at boot time:
-#     class { 'elasticsearch': }
+#     class { 'oldelasticsearch': }
 #
 # * Removal/decommissioning:
-#     class { 'elasticsearch':
+#     class { 'oldelasticsearch':
 #       ensure => 'absent',
 #     }
 #
 # * Install everything but disable service(s) afterwards
-#     class { 'elasticsearch':
+#     class { 'oldelasticsearch':
 #       status => 'disabled',
 #     }
 #
@@ -198,32 +198,32 @@
 #
 # * Richard Pijnenburg <mailto:richard.pijnenburg@elasticsearch.com>
 #
-class elasticsearch(
-  $ensure                = $elasticsearch::params::ensure,
-  $status                = $elasticsearch::params::status,
-  $restart_on_change     = $elasticsearch::params::restart_on_change,
-  $autoupgrade           = $elasticsearch::params::autoupgrade,
+class oldelasticsearch(
+  $ensure                = $oldelasticsearch::params::ensure,
+  $status                = $oldelasticsearch::params::status,
+  $restart_on_change     = $oldelasticsearch::params::restart_on_change,
+  $autoupgrade           = $oldelasticsearch::params::autoupgrade,
   $version               = false,
   $package_provider      = 'package',
   $package_url           = undef,
-  $package_dir           = $elasticsearch::params::package_dir,
-  $package_name          = $elasticsearch::params::package,
+  $package_dir           = $oldelasticsearch::params::package_dir,
+  $package_name          = $oldelasticsearch::params::package,
   $package_pin           = true,
-  $purge_package_dir     = $elasticsearch::params::purge_package_dir,
-  $package_dl_timeout    = $elasticsearch::params::package_dl_timeout,
+  $purge_package_dir     = $oldelasticsearch::params::purge_package_dir,
+  $package_dl_timeout    = $oldelasticsearch::params::package_dl_timeout,
   $proxy_url             = undef,
-  $elasticsearch_user    = $elasticsearch::params::elasticsearch_user,
-  $elasticsearch_group   = $elasticsearch::params::elasticsearch_group,
-  $configdir             = $elasticsearch::params::configdir,
-  $purge_configdir       = $elasticsearch::params::purge_configdir,
+  $elasticsearch_user    = $oldelasticsearch::params::elasticsearch_user,
+  $elasticsearch_group   = $oldelasticsearch::params::elasticsearch_group,
+  $configdir             = $oldelasticsearch::params::configdir,
+  $purge_configdir       = $oldelasticsearch::params::purge_configdir,
   $service_provider      = 'init',
   $init_defaults         = undef,
   $init_defaults_file    = undef,
   $init_template         = undef,
   $config                = undef,
-  $datadir               = $elasticsearch::params::datadir,
-  $plugindir             = $elasticsearch::params::plugindir,
-  $plugintool            = $elasticsearch::params::plugintool,
+  $datadir               = $oldelasticsearch::params::datadir,
+  $plugindir             = $oldelasticsearch::params::plugindir,
+  $plugintool            = $oldelasticsearch::params::plugintool,
   $java_install          = false,
   $java_package          = undef,
   $manage_repo           = false,
@@ -231,15 +231,15 @@ class elasticsearch(
   $logging_file          = undef,
   $logging_config        = undef,
   $logging_template      = undef,
-  $default_logging_level = $elasticsearch::params::default_logging_level,
+  $default_logging_level = $oldelasticsearch::params::default_logging_level,
   $repo_stage            = false,
   $instances             = undef,
   $instances_hiera_merge = false,
   $plugins               = undef,
   $plugins_hiera_merge   = false
-) inherits elasticsearch::params {
+) inherits oldelasticsearch::params {
 
-  anchor {'elasticsearch::begin': }
+  anchor {'oldelasticsearch::begin': }
 
 
   #### Validate parameters
@@ -263,15 +263,15 @@ class elasticsearch(
   # purge conf dir
   validate_bool($purge_configdir)
 
-  if is_array($elasticsearch::params::service_providers) {
+  if is_array($oldelasticsearch::params::service_providers) {
     # Verify the service provider given is in the array
-    if ! ($service_provider in $elasticsearch::params::service_providers) {
+    if ! ($service_provider in $oldelasticsearch::params::service_providers) {
       fail("\"${service_provider}\" is not a valid provider for \"${::operatingsystem}\"")
     }
     $real_service_provider = $service_provider
   } else {
     # There is only one option so simply set it
-    $real_service_provider = $elasticsearch::params::service_providers
+    $real_service_provider = $oldelasticsearch::params::service_providers
   }
 
   if ($package_url != undef and $version != false) {
@@ -316,37 +316,37 @@ class elasticsearch(
   #### Manage actions
 
   # package(s)
-  class { 'elasticsearch::package': }
+  class { 'oldelasticsearch::package': }
 
   # configuration
-  class { 'elasticsearch::config': }
+  class { 'oldelasticsearch::config': }
 
   # Hiera support for instances
   validate_bool($instances_hiera_merge)
 
   if $instances_hiera_merge == true {
-    $x_instances = hiera_hash('elasticsearch::instances', $::elasticsearch::instances)
+    $x_instances = hiera_hash('oldelasticsearch::instances', $::oldelasticsearch::instances)
   } else {
     $x_instances = $instances
   }
 
   if $x_instances {
     validate_hash($x_instances)
-    create_resources('elasticsearch::instance', $x_instances)
+    create_resources('oldelasticsearch::instance', $x_instances)
   }
 
   # Hiera support for plugins
   validate_bool($plugins_hiera_merge)
 
   if $plugins_hiera_merge == true {
-    $x_plugins = hiera_hash('elasticsearch::plugins', $::elasticsearch::plugins)
+    $x_plugins = hiera_hash('oldelasticsearch::plugins', $::oldelasticsearch::plugins)
   } else {
     $x_plugins = $plugins
   }
 
   if $x_plugins {
     validate_hash($x_plugins)
-    create_resources('elasticsearch::plugin', $x_plugins)
+    create_resources('oldelasticsearch::plugin', $x_plugins)
   }
 
 
@@ -358,9 +358,9 @@ class elasticsearch(
     }
 
     # ensure we first install java, the package and then the rest
-    Anchor['elasticsearch::begin']
+    Anchor['oldelasticsearch::begin']
     -> Class['::java']
-    -> Class['elasticsearch::package']
+    -> Class['oldelasticsearch::package']
   }
 
   if ($manage_repo == true) {
@@ -369,13 +369,13 @@ class elasticsearch(
       # use anchor for ordering
 
       # Set up repositories
-      class { 'elasticsearch::repo': }
+      class { 'oldelasticsearch::repo': }
 
       # Ensure that we set up the repositories before trying to install
       # the packages
-      Anchor['elasticsearch::begin']
-      -> Class['elasticsearch::repo']
-      -> Class['elasticsearch::package']
+      Anchor['oldelasticsearch::begin']
+      -> Class['oldelasticsearch::repo']
+      -> Class['oldelasticsearch::package']
 
     } else {
       # use staging for ordering
@@ -384,7 +384,7 @@ class elasticsearch(
         stage { $repo_stage:  before => Stage['main'] }
       }
 
-      class { 'elasticsearch::repo':
+      class { 'oldelasticsearch::repo':
         stage => $repo_stage,
       }
     }
@@ -395,19 +395,19 @@ class elasticsearch(
   if $ensure == 'present' {
 
     # we need the software before configuring it
-    Anchor['elasticsearch::begin']
-    -> Class['elasticsearch::package']
-    -> Class['elasticsearch::config']
-    -> Elasticsearch::Instance <| |>
-    -> Elasticsearch::Template <| |>
+    Anchor['oldelasticsearch::begin']
+    -> Class['oldelasticsearch::package']
+    -> Class['oldelasticsearch::config']
+    -> Oldelasticsearch::Instance <| |>
+    -> Oldelasticsearch::Template <| |>
 
   } else {
 
     # make sure all services are getting stopped before software removal
-    Anchor['elasticsearch::begin']
-    -> Elasticsearch::Instance <| |>
-    -> Class['elasticsearch::config']
-    -> Class['elasticsearch::package']
+    Anchor['oldelasticsearch::begin']
+    -> Oldelasticsearch::Instance <| |>
+    -> Class['oldelasticsearch::config']
+    -> Class['oldelasticsearch::package']
 
   }
 
