@@ -40,10 +40,10 @@ define elasticsearch::script(
     fail("\"${ensure}\" is not a valid ensure parameter value")
   }
 
-  validate_re($source, '^puppet://')
+  validate_re($source, '^(puppet|file)://')
 
-  $filenameArray = split($source, '/')
-  $basefilename = $filenameArray[-1]
+  $filename_array = split($source, '/')
+  $basefilename = $filename_array[-1]
 
   file { "${elasticsearch::params::homedir}/scripts/${basefilename}":
     ensure => $ensure,

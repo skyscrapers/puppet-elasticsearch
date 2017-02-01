@@ -1,7 +1,10 @@
 require 'beaker-rspec'
-require 'pry'
+require 'beaker/puppet_install_helper'
 require 'securerandom'
-require_relative 'spec_acceptance_integration'
+require 'thread'
+require 'infrataster/rspec'
+require 'rspec/retry'
+require_relative 'spec_helper_tls'
 
 def test_settings
   RSpec.configuration.test_settings
@@ -9,126 +12,133 @@ end
 
 RSpec.configure do |c|
   c.add_setting :test_settings, :default => {}
-end
 
-files_dir = ENV['files_dir'] || '/home/jenkins/puppet'
-
-proxy_host = ENV['BEAKER_PACKAGE_PROXY'] || ''
-
-if !proxy_host.empty?
-  gem_proxy = "http_proxy=#{proxy_host}" unless proxy_host.empty?
-
-  hosts.each do |host|
-    on host, "echo 'export http_proxy='#{proxy_host}'' >> /root/.bashrc"
-    on host, "echo 'export https_proxy='#{proxy_host}'' >> /root/.bashrc"
-    on host, "echo 'export no_proxy=\"localhost,127.0.0.1,localaddress,.localdomain.com,#{host.name}\"' >> /root/.bashrc"
+  # rspec-retry
+  c.display_try_failure_messages = true
+  c.default_sleep_interval = 5
+  # General-case retry keyword for unstable tests
+  c.around :each, :with_retries do |example|
+    example.run_with_retry retry: 4
   end
-else
-  gem_proxy = ''
+  # More forgiving retry config for really flaky tests
+  c.around :each, :with_generous_retries do |example|
+    example.run_with_retry retry: 10
+  end
+
+  # Helper hook for module cleanup
+  c.after :context, :with_cleanup do
+    apply_manifest <<-EOS
+      class { 'elasticsearch':
+        ensure      => 'absent',
+        manage_repo => true,
+      }
+      elasticsearch::instance { 'es-01': ensure => 'absent' }
+
+      file { '/usr/share/elasticsearch/plugin':
+        ensure  => 'absent',
+        force   => true,
+        recurse => true,
+        require => Class['elasticsearch'],
+      }
+    EOS
+  end
 end
+
+files_dir = ENV['files_dir'] || './spec/fixtures/artifacts'
 
 hosts.each do |host|
+  # Fix the Puppet type
+  host[:type] = ENV['PUPPET_INSTALL_TYPE'].dup
+  host[:type] = 'aio' if host[:type] == 'agent'
 
   # Install Puppet
-  if host.is_pe?
-    install_pe
-  else
-    puppetversion = ENV['VM_PUPPET_VERSION']
-    on host, "#{gem_proxy} gem install puppet --no-ri --no-rdoc --version '~> #{puppetversion}'"
-    on host, "mkdir -p #{host['distmoduledir']}"
-
-    if fact('osfamily') == 'Suse'
-      install_package host, 'rubygems ruby-devel augeas-devel libxml2-devel'
-      on host, "#{gem_proxy} gem install ruby-augeas --no-ri --no-rdoc"
-    end
-
-    if host[:type] == 'aio'
-      on host, "mkdir -p /var/log/puppetlabs/puppet"
-    end
-
+  #
+  # We spawn a thread to print dots periodically while installing puppet to
+  # avoid inactivity timeouts in Travis. Don't judge me.
+  unless host[:skip_puppet_install]
+    progress = Thread.new { print '.' while sleep 5 }
+    run_puppet_install_helper
+    progress.exit
   end
 
-  if ENV['ES_VERSION']
-
-    case fact('osfamily')
-      when 'RedHat'
-        if ENV['ES_VERSION'][0,1] == '1'
-          ext='noarch.rpm'
-        else
-          ext='rpm'
-        end
-      when 'Debian'
-        ext='deb'
-      when  'Suse'
-        ext='rpm'
-    end
-
-    url = get_url
-    RSpec.configuration.test_settings['snapshot_package'] = url.gsub('$EXT$', ext)
-
-  else
-
-    case fact('osfamily')
-      when 'RedHat'
-        scp_to(host, "#{files_dir}/elasticsearch-1.3.1.noarch.rpm", '/tmp/elasticsearch-1.3.1.noarch.rpm')
-      when 'Debian'
-        case fact('lsbmajdistrelease')
-          when '6'
-            scp_to(host, "#{files_dir}/elasticsearch-1.1.0.deb", '/tmp/elasticsearch-1.1.0.deb')
-          else
-            scp_to(host, "#{files_dir}/elasticsearch-1.3.1.deb", '/tmp/elasticsearch-1.3.1.deb')
-        end
-      when 'Suse'
-        case fact('operatingsystem')
-          when 'OpenSuSE'
-            scp_to(host, "#{files_dir}/elasticsearch-1.3.1.noarch.rpm", '/tmp/elasticsearch-1.3.1.noarch.rpm')
-        end
-    end
-
-    scp_to(host, "#{files_dir}/elasticsearch-bigdesk.zip", "/tmp/elasticsearch-bigdesk.zip")
-
+  if fact('osfamily') == 'Suse'
+    install_package host,
+                    '--force-resolution augeas-devel libxml2-devel ruby-devel'
+    on host, 'gem install ruby-augeas --no-ri --no-rdoc'
   end
 
-  # on debian/ubuntu nodes ensure we get the latest info
-  # Can happen we have stalled data in the images
-  if fact('osfamily') == 'Debian'
-    on host, "apt-get update"
-  end
-  if fact('osfamily') == 'RedHat'
-    on host, "yum -y update"
-  end
+  package_name = case fact('osfamily')
+                 when 'Debian'
+                   case fact('lsbmajdistrelease')
+                   when '6'
+                     'elasticsearch-1.1.0.deb'
+                   else
+                     'elasticsearch-1.3.1.deb'
+                   end
+                 else
+                   'elasticsearch-1.3.1.noarch.rpm'
+                 end
 
+  snapshot_package = {
+      :src => "#{files_dir}/#{package_name}",
+      :dst => "/tmp/#{package_name}"
+  }
+
+  scp_to host,
+         snapshot_package[:src],
+         snapshot_package[:dst]
+  scp_to host,
+         "#{files_dir}/elasticsearch-bigdesk.zip",
+         '/tmp/elasticsearch-bigdesk.zip'
+  scp_to host,
+         "#{files_dir}/elasticsearch-kopf.zip",
+         '/tmp/elasticsearch-kopf.zip'
+
+  RSpec.configuration.test_settings['snapshot_package'] = \
+    "file:#{snapshot_package[:dst]}"
+
+  Infrataster::Server.define(:docker) do |server|
+    server.address = host[:ip]
+    server.ssh = host[:ssh].tap { |s| s.delete :forward_agent }
+  end
+  Infrataster::Server.define(:container) do |server|
+    server.address = host[:vm_ip] # this gets ignored anyway
+    server.from = :docker
+  end
 end
 
 RSpec.configure do |c|
-  # Project root
-  proj_root = File.expand_path(File.join(File.dirname(__FILE__), '..'))
-
+  # Uncomment for verbose test descriptions.
   # Readable test descriptions
-  c.formatter = :documentation
+  # c.formatter = :documentation
 
   # Configure all nodes in nodeset
   c.before :suite do
     # Install module and dependencies
-    puppet_module_install(:source => proj_root, :module_name => 'elasticsearch')
+    install_dev_puppet_module :ignore_list => [
+      'junit'
+    ] + Beaker::DSL::InstallUtils::ModuleUtils::PUPPET_MODULE_INSTALL_IGNORE
+
     hosts.each do |host|
-
       copy_hiera_data_to(host, 'spec/fixtures/hiera/hieradata/')
-      on host, puppet('module','install','puppetlabs-java'), { :acceptable_exit_codes => [0,1] }
-      on host, puppet('module','install','richardc-datacat'), { :acceptable_exit_codes => [0,1] }
 
-      if fact('osfamily') == 'Debian'
-        on host, puppet('module','install','puppetlabs-apt', '--version=1.8.0'), { :acceptable_exit_codes => [0,1] }
-      end
-      if fact('osfamily') == 'Suse'
-        on host, puppet('module','install','darin-zypprepo'), { :acceptable_exit_codes => [0,1] }
-      end
-      if fact('osfamily') == 'RedHat'
-        on host, puppet('module', 'upgrade', 'puppetlabs-stdlib'), {  :acceptable_exit_codes => [0,1] }
-        on host, puppet('module', 'install', 'ceritsc-yum'), { :acceptable_exit_codes => [0,1] }
+      modules = %w(archive stdlib java datacat java_ks)
+
+      dist_module = {
+        'Debian' => 'apt',
+        'Suse'   => 'zypprepo',
+        'RedHat' => 'yum'
+      }[fact('osfamily')]
+
+      modules << dist_module unless dist_module.nil?
+
+      modules.each do |mod|
+        copy_module_to host,
+          :module_name => mod,
+          :source      => "spec/fixtures/modules/#{mod}"
       end
 
-    on(host, 'mkdir -p etc/puppet/modules/another/files/')
+      on(host, 'mkdir -p etc/puppet/modules/another/files/')
     end
   end
 
@@ -136,13 +146,12 @@ RSpec.configure do |c|
     if ENV['ES_VERSION']
       hosts.each do |host|
         timestamp = Time.now
-        log_dir = File.join('./spec/logs', timestamp.strftime("%F_%H_%M_%S"))
+        log_dir = File.join('./spec/logs', timestamp.strftime('%F_%H_%M_%S'))
         FileUtils.mkdir_p(log_dir) unless File.directory?(log_dir)
         scp_from(host, '/var/log/elasticsearch', log_dir)
       end
     end
   end
-
 end
 
 require_relative 'spec_acceptance_common'

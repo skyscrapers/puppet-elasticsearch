@@ -9,10 +9,12 @@
 # === Parameters
 #
 # [*module_dir*]
-#   Directory name where the module will be installed
+#   Directory name where the module has been installed
+#   This is automatically generated based on the module name
+#   Specify a value here to override the auto generated value
 #   Value type is string
 #   Default value: None
-#   This variable is deprecated
+#   This variable is optional
 #
 # [*ensure*]
 #   Whether the plugin will be installed or removed.
@@ -46,6 +48,18 @@
 #   Default value: None
 #   This variable is optional
 #
+# [*proxy_username*]
+#   Proxy auth username to use when installing the plugin
+#   Value type is string
+#   Default value: None
+#   This variable is optional
+#
+# [*proxy_password*]
+#   Proxy auth username to use when installing the plugin
+#   Value type is string
+#   Default value: None
+#   This variable is optional
+#
 # [*instances*]
 #   Specify all the instances related
 #   value type is string or array
@@ -68,113 +82,95 @@
 # * Richard Pijnenburg <mailto:richard.pijnenburg@elasticsearch.com>
 #
 define elasticsearch::plugin(
-    $instances,
-    $module_dir  = undef,
-    $ensure      = 'present',
-    $url         = undef,
-    $source      = undef,
-    $proxy_host  = undef,
-    $proxy_port  = undef,
+  $instances      = undef,
+  $module_dir     = undef,
+  $ensure         = 'present',
+  $url            = undef,
+  $source         = undef,
+  $proxy_host     = undef,
+  $proxy_port     = undef,
+  $proxy_username = undef,
+  $proxy_password = undef,
 ) {
 
   include elasticsearch
 
-  Exec {
-    path      => [ '/bin', '/usr/bin', '/usr/local/bin' ],
-    cwd       => '/',
-    user      => $elasticsearch::elasticsearch_user,
-    tries     => 6,
-    try_sleep => 10,
-    timeout   => 600,
+  case $ensure {
+    'installed', 'present': {
+      if empty($instances) {
+        fail('no $instances defined')
+      }
+
+      $_file_ensure = 'directory'
+      $_file_before = []
+    }
+    'absent': {
+      $_file_ensure = $ensure
+      $_file_before = File[$elasticsearch::plugindir]
+    }
+    default: {
+      fail("'${ensure}' is not a valid ensure parameter value")
+    }
   }
 
-  $notify_service = $elasticsearch::restart_on_change ? {
-    false   => undef,
-    default => Elasticsearch::Service[$instances],
-  }
-
-  if ($module_dir != undef) {
-      warning("module_dir settings is deprecated for plugin ${name}. The directory is now auto detected.")
-      $plugin_dir = $module_dir
-  } else {
-    $plugin_dir = plugin_dir($name)
+  if ! empty($instances) and $elasticsearch::restart_plugin_change {
+    Elasticsearch_plugin[$name] {
+      notify +> Elasticsearch::Instance[$instances],
+    }
   }
 
   # set proxy by override or parse and use proxy_url from
   # elasticsearch::proxy_url or use no proxy at all
-  
+
   if ($proxy_host != undef and $proxy_port != undef) {
-    $proxy = " -DproxyPort=${proxy_port} -DproxyHost=${proxy_host}"
-  }
-  elsif ($elasticsearch::proxy_url != undef) {
-    $proxy_host_from_url = regsubst($elasticsearch::proxy_url, '(http|https)://([^:]+)(|:\d+).+', '\2')
-    $proxy_port_from_url = regsubst($elasticsearch::proxy_url, '(?:http|https)://[^:/]+(?::([0-9]+))?(?:/.*)?', '\1')
-    
-    # validate parsed values before using them
-    if (is_string($proxy_host_from_url) and is_integer($proxy_port_from_url)) {
-      $proxy = " -DproxyPort=${proxy_port_from_url} -DproxyHost=${proxy_host_from_url}"
+    if ($proxy_username != undef and $proxy_password != undef) {
+      $_proxy_auth = "${proxy_username}:${proxy_password}@"
+    } else {
+      $_proxy_auth = undef
     }
-  }
-  else {
-    $proxy = '' # lint:ignore:empty_string_assignment
+    $_proxy = "http://${_proxy_auth}${proxy_host}:${proxy_port}"
+  } elsif ($elasticsearch::proxy_url != undef) {
+    $_proxy = $elasticsearch::proxy_url
+  } else {
+    $_proxy = undef
   }
 
   if ($source != undef) {
 
-    $filenameArray = split($source, '/')
-    $basefilename = $filenameArray[-1]
+    $filename_array = split($source, '/')
+    $basefilename = $filename_array[-1]
 
-    file { "/tmp/${basefilename}":
+    $file_source = "${elasticsearch::package_dir}/${basefilename}"
+
+    file { $file_source:
       ensure => 'file',
       source => $source,
+      before => Elasticsearch_plugin[$name],
     }
 
-    $real_url = "file:///tmp/${basefilename}"
-  } elsif ($url != undef) {
+  } else {
+    $file_source = undef
+  }
+
+  if ($url != undef) {
     validate_string($url)
-    $real_url = $url
-  } else {
-    $real_url = undef
   }
 
-  if ($real_url == undef) {
-    $install_cmd = "${elasticsearch::plugintool}${proxy} install ${name}"
-    $exec_rets = [0,]
-  } else {
-    $install_cmd = "${elasticsearch::plugintool}${proxy} install ${name} --url ${real_url}"
-    $exec_rets = [0,1]
-  }
+  $_module_dir = es_plugin_name($module_dir, $name)
 
-  case $ensure {
-    'installed', 'present': {
-      $name_file_path = "${elasticsearch::plugindir}/${plugin_dir}/.name"
-      exec {"purge_plugin_${plugin_dir}_old":
-        command => "${elasticsearch::plugintool} --remove ${plugin_dir}",
-        onlyif  => "test -e ${elasticsearch::plugindir}/${plugin_dir} && test \"$(cat ${name_file_path})\" != '${name}'",
-        before  => Exec["install_plugin_${name}"],
-      }
-      exec {"install_plugin_${name}":
-        command => $install_cmd,
-        creates => "${elasticsearch::plugindir}/${plugin_dir}",
-        returns => $exec_rets,
-        notify  => $notify_service,
-        require => File[$elasticsearch::plugindir],
-      }
-      file {$name_file_path:
-        ensure  => file,
-        content => "${name}", # lint:ignore:only_variable_string
-        require => Exec["install_plugin_${name}"],
-      }
-    }
-    'absent': {
-      exec {"remove_plugin_${name}":
-        command => "${elasticsearch::plugintool} --remove ${plugin_dir}",
-        onlyif  => "test -d ${elasticsearch::plugindir}/${plugin_dir}",
-        notify  => $notify_service,
-      }
-    }
-    default: {
-      fail("${ensure} is not a valid ensure command.")
-    }
+  elasticsearch_plugin { $name:
+    ensure                     => $ensure,
+    elasticsearch_package_name => $elasticsearch::package_name,
+    source                     => $file_source,
+    url                        => $url,
+    proxy                      => $_proxy,
+    plugin_dir                 => $::elasticsearch::plugindir,
+    plugin_path                => $module_dir,
+  } ->
+  file { "${elasticsearch::plugindir}/${_module_dir}":
+    ensure  => $_file_ensure,
+    mode    => 'o+Xr',
+    recurse => true,
+    before  => $_file_before,
   }
 }

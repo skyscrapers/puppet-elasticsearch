@@ -19,23 +19,24 @@ module EsFacts
     # only when the directory exists we need to process the stuff
     if File.directory?(dir_prefix)
 
-      Dir.foreach(dir_prefix) { |dir| 
+      Dir.foreach(dir_prefix) do |dir|
         next if dir == '.'
+
         if File.exists?("#{dir_prefix}/#{dir}/elasticsearch.yml")
           config_data = YAML.load_file("#{dir_prefix}/#{dir}/elasticsearch.yml")
-          unless config_data['http'].nil?
-            next if config_data['http']['enabled'] == 'false'
-            if config_data['http']['port'].nil?
-              port = "9200"
-            else
-              port = config_data['http']['port']
-            end
+
+          if not config_data['http.enabled'].nil? and \
+              config_data['http.enabled'] == 'false'
+            next
+          elsif not config_data['http.port'].nil?
+            port = config_data['http.port']
           else
-            port = "9200"
+            port = '9200'
           end
+
           ports << port
         end
-      }
+      end
 
       begin
         if ports.count > 0
@@ -48,6 +49,7 @@ module EsFacts
             uri = URI("http://localhost:#{port}")
             http = Net::HTTP.new(uri.host, uri.port)
             http.read_timeout = 10
+            http.open_timeout = 2
             response = http.get("/")
             json_data = JSON.parse(response.body)
             next if json_data['status'] && json_data['status'] != 200
@@ -58,6 +60,7 @@ module EsFacts
             uri2 = URI("http://localhost:#{port}/_nodes/#{json_data['name']}")
             http2 = Net::HTTP.new(uri2.host, uri2.port)
             http2.read_timeout = 10
+            http2.open_timeout = 2
             response2 = http2.get(uri2.path)
             json_data_node = JSON.parse(response2.body)
 

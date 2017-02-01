@@ -13,20 +13,24 @@ describe 'elasticsearch', :type => 'class' do
       case facts[:osfamily]
       when 'Debian'
         let(:defaults_path) { '/etc/default' }
+        let(:system_service_folder) { '/lib/systemd/system' }
         let(:pkg_ext) { 'deb' }
         let(:pkg_prov) { 'dpkg' }
         let(:version_add) { '' }
         if facts[:lsbmajdistrelease] >= '8'
+          let(:systemd_service_path) { '/lib/systemd/system' }
           test_pid = true
         else
           test_pid = false
         end
       when 'RedHat'
         let(:defaults_path) { '/etc/sysconfig' }
+        let(:system_service_folder) { '/lib/systemd/system' }
         let(:pkg_ext) { 'rpm' }
         let(:pkg_prov) { 'rpm' }
         let(:version_add) { '-1' }
         if facts[:operatingsystemmajrelease] >= '7'
+          let(:systemd_service_path) { '/lib/systemd/system' }
           test_pid = true
         else
           test_pid = false
@@ -36,6 +40,12 @@ describe 'elasticsearch', :type => 'class' do
         let(:pkg_ext) { 'rpm' }
         let(:pkg_prov) { 'rpm' }
         let(:version_add) { '-1' }
+        if facts[:operatingsystem] == 'OpenSuSE' and
+            facts[:operatingsystemrelease].to_i <= 12
+          let(:systemd_service_path) { '/lib/systemd/system' }
+        else
+          let(:systemd_service_path) { '/usr/lib/systemd/system' }
+        end
       end
 
       let(:facts) do
@@ -58,24 +68,35 @@ describe 'elasticsearch', :type => 'class' do
 
         # Base directories
         it { should contain_file('/etc/elasticsearch') }
+        it { should contain_file('/etc/elasticsearch/jvm.options') }
         it { should contain_file('/usr/share/elasticsearch/templates_import') }
         it { should contain_file('/usr/share/elasticsearch/scripts') }
+        it { should contain_file('/usr/share/elasticsearch/shield') }
         it { should contain_file('/usr/share/elasticsearch') }
         it { should contain_file('/usr/share/elasticsearch/lib') }
-        it { should contain_file('/usr/share/elasticsearch/plugins') }
-        it { should contain_file('/usr/share/elasticsearch/bin').with(:mode => '0755') }
-	it { should contain_augeas("#{defaults_path}/elasticsearch") }
+        it { should contain_augeas("#{defaults_path}/elasticsearch") }
+
+        it { should contain_exec('remove_plugin_dir') }
 
         # Base files
         if test_pid == true
-          it { should contain_file('/usr/lib/tmpfiles.d/elasticsearch.conf') }
+          it { should contain_exec('systemctl mask elasticsearch.service')}
+          it { should contain_file(
+            '/usr/lib/tmpfiles.d/elasticsearch.conf'
+          ) }
         end
 
-	# file removal from package
-	it { should contain_file('/etc/init.d/elasticsearch').with(:ensure => 'absent') }
-	it { should contain_file('/lib/systemd/system/elasticsearch.service').with(:ensure => 'absent') }
-	it { should contain_file('/etc/elasticsearch/elasticsearch.yml').with(:ensure => 'absent') }
-	it { should contain_file('/etc/elasticsearch/logging.yml').with(:ensure => 'absent') }
+        # file removal from package
+        it { should contain_file('/etc/init.d/elasticsearch')
+          .with(:ensure => 'absent') }
+        it { should contain_file('/etc/elasticsearch/elasticsearch.yml')
+          .with(:ensure => 'absent') }
+        it { should contain_file('/etc/elasticsearch/logging.yml')
+          .with(:ensure => 'absent') }
+        it { should contain_file('/etc/elasticsearch/log4j2.properties')
+          .with(:ensure => 'absent') }
+        it { should contain_file('/etc/elasticsearch/log4j2.properties')
+          .with(:ensure => 'absent') }
       end
 
       context 'package installation' do
@@ -98,6 +119,12 @@ describe 'elasticsearch', :type => 'class' do
             }
 
             it { should contain_package('elasticsearch').with(:ensure => "1.0#{version_add}") }
+            case facts[:osfamily]
+            when 'RedHat'
+              it { should contain_yum__versionlock(
+                "0:elasticsearch-1.0#{version_add}.noarch"
+              ) }
+            end
           end
 
           if facts[:osfamily] == 'RedHat'
@@ -110,6 +137,9 @@ describe 'elasticsearch', :type => 'class' do
               }
 
               it { should contain_package('elasticsearch').with(:ensure => "1.1-2") }
+              it { should contain_yum__versionlock(
+                '0:elasticsearch-1.1-2.noarch'
+              ) }
             end
           end
 
@@ -178,7 +208,7 @@ describe 'elasticsearch', :type => 'class' do
             it { should contain_exec('download_package_elasticsearch').with(:command => "wget --no-check-certificate -O /opt/elasticsearch/swdl/package.#{pkg_ext} http://www.domain.com/path/to/package.#{pkg_ext} 2> /dev/null", :require => 'File[/opt/elasticsearch/swdl]') }
             it { should contain_package('elasticsearch').with(:ensure => 'present', :source => "/opt/elasticsearch/swdl/package.#{pkg_ext}", :provider => "#{pkg_prov}") }
           end
-          
+
           context 'using http:// schema with proxy_url' do
 
             let (:params) {
@@ -244,8 +274,23 @@ describe 'elasticsearch', :type => 'class' do
           })
         }
 
-        it { should contain_package('elasticsearch').with(:ensure => 'purged') }
+        case facts[:osfamily]
+        when 'Suse'
+          it { should contain_package('elasticsearch').with(:ensure => 'absent') }
+        when 'RedHat'
+          it { should contain_exec(
+            'elasticsearch_purge_versionlock.list'
+          ) }
+        else
+          it { should contain_package('elasticsearch').with(:ensure => 'purged') }
+        end
 
+        it {
+          should contain_file('/usr/share/elasticsearch/plugins')
+            .with(
+              :ensure => 'absent',
+          )
+        }
       end
 
       context 'When managing the repository' do
@@ -263,11 +308,18 @@ describe 'elasticsearch', :type => 'class' do
           it { should contain_apt__source('elasticsearch').with(:release => 'stable', :repos => 'main', :location => 'http://packages.elastic.co/elasticsearch/1.0/debian') }
         when 'RedHat'
           it { should contain_class('elasticsearch::repo').that_requires('Anchor[elasticsearch::begin]') }
-          it { should contain_yumrepo('elasticsearch').with(:baseurl => 'http://packages.elastic.co/elasticsearch/1.0/centos', :gpgkey => 'http://packages.elastic.co/GPG-KEY-elasticsearch', :enabled => 1) }
+          it { should contain_yumrepo('elasticsearch')
+            .with(
+              :baseurl => 'http://packages.elastic.co/elasticsearch/1.0/centos',
+              :gpgkey  => 'https://artifacts.elastic.co/GPG-KEY-elasticsearch',
+              :enabled => 1
+          ) }
+          it { should contain_exec('elasticsearch_yumrepo_yum_clean') }
         when 'SuSE'
           it { should contain_class('elasticsearch::repo').that_requires('Anchor[elasticsearch::begin]') }
           it { should contain_exec('elasticsearch_suse_import_gpg') }
           it { should contain_zypprepo('elasticsearch').with(:baseurl => 'http://packages.elastic.co/elasticsearch/1.0/centos') }
+          it { should contain_exec('elasticsearch_zypper_refresh_elasticsearch') }
         end
 
       end
@@ -279,6 +331,65 @@ describe 'elasticsearch', :type => 'class' do
           })
         }
         it { expect { should raise_error(Puppet::Error, 'Please fill in a repository version at $repo_version') } }
+      end
+
+      context 'package pinning' do
+
+        let :params do
+          default_params.merge({
+            :package_pin => true,
+            :version => '1.6.0'
+          })
+        end
+
+        it { should contain_class(
+          'elasticsearch::package::pin'
+        ).that_comes_before(
+          'Class[elasticsearch::package]'
+        ) }
+
+        case facts[:osfamily]
+        when 'Debian'
+          context 'is supported' do
+            it { should contain_apt__pin('elasticsearch').with(:packages => ['elasticsearch'], :version => '1.6.0') }
+          end
+        when 'RedHat'
+          context 'is supported' do
+            it { should contain_yum__versionlock(
+              '0:elasticsearch-1.6.0-1.noarch'
+            ) }
+          end
+        else
+          context 'is not supported' do
+            pending("unable to test for warnings yet. https://github.com/rodjek/rspec-puppet/issues/108")
+          end
+        end
+      end
+
+      context 'repository priority pinning' do
+
+        let :params do
+          default_params.merge({
+            :manage_repo => true,
+            :repo_priority => 10,
+            :repo_version => '2.x'
+          })
+        end
+
+        case facts[:osfamily]
+        when 'Debian'
+          context 'is supported' do
+            it { should contain_apt__source('elasticsearch').with(
+              :pin => 10
+            ) }
+          end
+        when 'RedHat'
+          context 'is supported' do
+            it { should contain_yumrepo('elasticsearch').with(
+              :priority => 10
+            ) }
+          end
+        end
       end
 
       context "Running a a different user" do
@@ -293,9 +404,48 @@ describe 'elasticsearch', :type => 'class' do
         it { should contain_file('/etc/elasticsearch').with(:owner => 'myesuser', :group => 'myesgroup') }
         it { should contain_file('/var/log/elasticsearch').with(:owner => 'myesuser') }
         it { should contain_file('/usr/share/elasticsearch').with(:owner => 'myesuser', :group => 'myesgroup') }
-        it { should contain_file('/usr/share/elasticsearch/plugins').with(:owner => 'myesuser', :group => 'myesgroup') }
+        # it { should contain_file('/usr/share/elasticsearch/plugins').with(:owner => 'myesuser', :group => 'myesgroup') }
         it { should contain_file('/usr/share/elasticsearch/data').with(:owner => 'myesuser', :group => 'myesgroup') }
         it { should contain_file('/var/run/elasticsearch').with(:owner => 'myesuser') } if facts[:osfamily] == 'RedHat'
+      end
+
+      describe 'jvm.options' do
+        context 'class overrides' do
+          let :params do
+            default_params.merge({
+              :jvm_options => [
+                '-Xms1g',
+                '-Xmx1g',
+              ],
+            })
+          end
+
+          it { should contain_file(
+            '/etc/elasticsearch/jvm.options'
+          ).with_content(/
+            -Dfile.encoding=UTF-8.
+            -Dio.netty.noKeySetOptimization=true.
+            -Dio.netty.noUnsafe=true.
+            -Dio.netty.recycler.maxCapacityPerThread=0.
+            -Djava.awt.headless=true.
+            -Djdk.io.permissionsUseCanonicalPath=true.
+            -Djna.nosys=true.
+            -Dlog4j.shutdownHookEnabled=false.
+            -Dlog4j.skipJansi=true.
+            -Dlog4j2.disable.jmx=true.
+            -XX:\+AlwaysPreTouch.
+            -XX:\+DisableExplicitGC.
+            -XX:\+HeapDumpOnOutOfMemoryError.
+            -XX:\+UseCMSInitiatingOccupancyOnly.
+            -XX:\+UseConcMarkSweepGC.
+            -XX:CMSInitiatingOccupancyFraction=75.
+            -Xms1g.
+            -Xmx1g.
+            -Xss1m.
+            -server.
+          /xm
+          ) }
+        end
       end
 
     end

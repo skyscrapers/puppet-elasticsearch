@@ -107,13 +107,13 @@ define elasticsearch::service::init(
 
   }
 
-  $notify_service = $elasticsearch::restart_on_change ? {
+  $notify_service = $elasticsearch::restart_config_change ? {
     true  => Service["elasticsearch-instance-${name}"],
     false => undef,
   }
 
 
-  if ( $status != 'unmanaged' and $ensure == 'present' ) {
+  if ( $ensure == 'present' ) {
 
     # defaults file content. Either from a hash or file
     if ($init_defaults_file != undef) {
@@ -121,21 +121,27 @@ define elasticsearch::service::init(
         ensure => $ensure,
         source => $init_defaults_file,
         owner  => 'root',
-        group  => 'root',
+        group  => '0',
         mode   => '0644',
         before => Service["elasticsearch-instance-${name}"],
         notify => $notify_service,
       }
 
-    } elsif ($init_defaults != undef and is_hash($init_defaults) ) {
+    } else {
 
-      if(has_key($init_defaults, 'ES_USER')) {
-        if($init_defaults['ES_USER'] != $elasticsearch::elasticsearch_user) {
-          fail('Found ES_USER setting for init_defaults but is not same as elasticsearch_user setting. Please use elasticsearch_user setting.')
+      if ($init_defaults != undef and is_hash($init_defaults) ) {
+        if(has_key($init_defaults, 'ES_USER')) {
+          if($init_defaults['ES_USER'] != $elasticsearch::elasticsearch_user) {
+            fail('Found ES_USER setting for init_defaults but is not same as elasticsearch_user setting. Please use elasticsearch_user setting.')
+          }
         }
       }
 
-      $init_defaults_pre_hash = { 'ES_USER' => $elasticsearch::elasticsearch_user, 'ES_GROUP' => $elasticsearch::elasticsearch_group, 'MAX_OPEN_FILES' => '65535' }
+      $init_defaults_pre_hash = {
+        'ES_USER' => $elasticsearch::elasticsearch_user,
+        'ES_GROUP' => $elasticsearch::elasticsearch_group,
+        'MAX_OPEN_FILES' => '65536',
+      }
       $new_init_defaults = merge($init_defaults_pre_hash, $init_defaults)
 
       augeas { "defaults_${name}":
@@ -151,19 +157,25 @@ define elasticsearch::service::init(
     # init file from template
     if ($init_template != undef) {
 
+      elasticsearch_service_file { "/etc/init.d/elasticsearch-${name}":
+        ensure       => $ensure,
+        content      => file($init_template),
+        instance     => $name,
+        notify       => $notify_service,
+        package_name => $elasticsearch::package_name,
+      } ->
       file { "/etc/init.d/elasticsearch-${name}":
-        ensure  => $ensure,
-        content => template($init_template),
-        owner   => 'root',
-        group   => 'root',
-        mode    => '0755',
-        before  => Service["elasticsearch-instance-${name}"],
-        notify  => $notify_service,
+        ensure => $ensure,
+        owner  => 'root',
+        group  => '0',
+        mode   => '0755',
+        before => Service["elasticsearch-instance-${name}"],
+        notify => $notify_service,
       }
 
     }
 
-  } elsif ($status != 'unmanaged') {
+  } else {
 
     file { "/etc/init.d/elasticsearch-${name}":
       ensure    => 'absent',
@@ -177,19 +189,15 @@ define elasticsearch::service::init(
 
   }
 
-
-  if ( $status != 'unmanaged') {
-
-    # action
-    service { "elasticsearch-instance-${name}":
-      ensure     => $service_ensure,
-      enable     => $service_enable,
-      name       => "elasticsearch-${name}",
-      hasstatus  => $elasticsearch::params::service_hasstatus,
-      hasrestart => $elasticsearch::params::service_hasrestart,
-      pattern    => $elasticsearch::params::service_pattern,
-    }
-
+  # action
+  service { "elasticsearch-instance-${name}":
+    ensure     => $service_ensure,
+    enable     => $service_enable,
+    name       => "elasticsearch-${name}",
+    hasstatus  => $elasticsearch::params::service_hasstatus,
+    hasrestart => $elasticsearch::params::service_hasrestart,
+    pattern    => $elasticsearch::params::service_pattern,
   }
+
 
 }

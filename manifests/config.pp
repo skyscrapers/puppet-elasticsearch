@@ -26,11 +26,6 @@ class elasticsearch::config {
 
   #### Configuration
 
-  File {
-    owner => $elasticsearch::elasticsearch_user,
-    group => $elasticsearch::elasticsearch_group,
-  }
-
   Exec {
     path => [ '/bin', '/usr/bin', '/usr/local/bin' ],
     cwd  => '/',
@@ -38,102 +33,114 @@ class elasticsearch::config {
 
   if ( $elasticsearch::ensure == 'present' ) {
 
-    $notify_service = $elasticsearch::restart_on_change ? {
-      true  => Class['elasticsearch::service'],
-      false => undef,
-    }
-
-    file { $elasticsearch::configdir:
-      ensure => directory,
-      mode   => '0644',
-    }
-
-    file { $elasticsearch::params::logdir:
-      ensure  => 'directory',
-      group   => undef,
-      mode    => '0644',
-      recurse => true,
-    }
-
-    file { $elasticsearch::params::homedir:
-      ensure  => 'directory',
-    }
-
-    file { "${elasticsearch::params::homedir}/bin":
-      ensure  => 'directory',
-      recurse => true,
-      mode    => '0755',
-    }
-
-    file { $elasticsearch::plugindir:
-      ensure  => 'directory',
-      recurse => true,
-    }
-
-    file { $elasticsearch::datadir:
-      ensure  => 'directory',
-    }
-
-    file { "${elasticsearch::homedir}/lib":
-      ensure  => 'directory',
-      recurse => true,
+    file {
+      $elasticsearch::configdir:
+        ensure => 'directory',
+        group  => $elasticsearch::elasticsearch_group,
+        owner  => $elasticsearch::elasticsearch_user,
+        mode   => '0644';
+      $elasticsearch::datadir:
+        ensure => 'directory',
+        group  => $elasticsearch::elasticsearch_group,
+        owner  => $elasticsearch::elasticsearch_user;
+      $elasticsearch::logdir:
+        ensure  => 'directory',
+        group   => undef,
+        owner   => $elasticsearch::elasticsearch_user,
+        mode    => '0644',
+        recurse => true;
+      $elasticsearch::plugindir:
+        ensure => 'directory',
+        group  => $elasticsearch::elasticsearch_group,
+        owner  => $elasticsearch::elasticsearch_user,
+        mode   => 'o+Xr';
+      "${elasticsearch::homedir}/lib":
+        ensure  => 'directory',
+        group   => $elasticsearch::elasticsearch_group,
+        owner   => $elasticsearch::elasticsearch_user,
+        recurse => true;
+      $elasticsearch::params::homedir:
+        ensure => 'directory',
+        group  => $elasticsearch::elasticsearch_group,
+        owner  => $elasticsearch::elasticsearch_user;
+      "${elasticsearch::params::homedir}/templates_import":
+        ensure => 'directory',
+        group  => $elasticsearch::elasticsearch_group,
+        owner  => $elasticsearch::elasticsearch_user,
+        mode   => '0644';
+      "${elasticsearch::params::homedir}/scripts":
+        ensure => 'directory',
+        group  => $elasticsearch::elasticsearch_group,
+        owner  => $elasticsearch::elasticsearch_user,
+        mode   => '0644';
+      "${elasticsearch::params::homedir}/shield":
+        ensure => 'directory',
+        mode   => '0644',
+        group  => '0',
+        owner  => 'root';
+      '/etc/elasticsearch/elasticsearch.yml':
+        ensure => 'absent';
+      '/etc/elasticsearch/logging.yml':
+        ensure => 'absent';
+      '/etc/elasticsearch/log4j2.properties':
+        ensure => 'absent';
+      '/etc/init.d/elasticsearch':
+        ensure => 'absent';
     }
 
     if $elasticsearch::params::pid_dir {
       file { $elasticsearch::params::pid_dir:
         ensure  => 'directory',
         group   => undef,
+        owner   => $elasticsearch::elasticsearch_user,
         recurse => true,
       }
 
       if ($elasticsearch::service_providers == 'systemd') {
-        $user = $elasticsearch::elasticsearch_user
         $group = $elasticsearch::elasticsearch_group
+        $user = $elasticsearch::elasticsearch_user
         $pid_dir = $elasticsearch::params::pid_dir
 
         file { '/usr/lib/tmpfiles.d/elasticsearch.conf':
           ensure  => 'file',
           content => template("${module_name}/usr/lib/tmpfiles.d/elasticsearch.conf.erb"),
+          group   => '0',
           owner   => 'root',
-          group   => 'root',
         }
       }
     }
 
-    file { "${elasticsearch::params::homedir}/templates_import":
-      ensure => 'directory',
-      mode   => '0644',
-    }
-
-    file { "${elasticsearch::params::homedir}/scripts":
-      ensure => 'directory',
-      mode   => '0644',
-    }
-
-    # Removal of files that are provided with the package which we don't use
-    file { '/etc/init.d/elasticsearch':
-      ensure => 'absent',
-    }
-    file { '/lib/systemd/system/elasticsearch.service':
-      ensure => 'absent',
+    if ($elasticsearch::service_providers == 'systemd') {
+      # Mask default unit (from package)
+      exec { 'systemctl mask elasticsearch.service':
+        unless => 'test `systemctl is-enabled elasticsearch.service` = masked',
+      }
     }
 
     $new_init_defaults = { 'CONF_DIR' => $elasticsearch::configdir }
-    augeas { "${elasticsearch::params::defaults_location}/elasticsearch":
-      incl    => "${elasticsearch::params::defaults_location}/elasticsearch",
-      lens    => 'Shellvars.lns',
-      changes => template("${module_name}/etc/sysconfig/defaults.erb"),
+    if $elasticsearch::params::defaults_location {
+      augeas { "${elasticsearch::params::defaults_location}/elasticsearch":
+        incl    => "${elasticsearch::params::defaults_location}/elasticsearch",
+        lens    => 'Shellvars.lns',
+        changes => template("${module_name}/etc/sysconfig/defaults.erb"),
+      }
     }
 
-    file { '/etc/elasticsearch/elasticsearch.yml':
-      ensure => 'absent',
-    }
-    file { '/etc/elasticsearch/logging.yml':
-      ensure => 'absent',
+    $jvm_options = $elasticsearch::jvm_options
+    file { "${elasticsearch::configdir}/jvm.options":
+      content => template("${module_name}/etc/elasticsearch/jvm.options.erb"),
+      owner   => $elasticsearch::elasticsearch_user,
+      group   => $elasticsearch::elasticsearch_group,
     }
 
   } elsif ( $elasticsearch::ensure == 'absent' ) {
-    # don't remove anything for now
+
+    file { $elasticsearch::plugindir:
+      ensure => 'absent',
+      force  => true,
+      backup => false,
+    }
+
   }
 
 }
