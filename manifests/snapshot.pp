@@ -109,14 +109,20 @@ class elasticsearch::snapshot(
     }
   }
 
-  if ( $cronjob == true ) {
-    file {
-      '/etc/cron.d/elasticsearch':
-        ensure  => file,
-        content => template('elasticsearch/etc/cron.d/elasticsearch.erb'),
-        owner   => root,
-        group   => root,
-        mode    => '0644';
-    }
+  cron { 'elasticsearch_backup':
+    command => "${script_path}/elasticsearch_backup.py -n ${name} -a ${snapshot_age}",
+    ensure  => $cronjob ? {
+      true  => present,
+      false => absent,
+    },
+    user    => 'root',
+    hour    => $cron_starthour,
+    minute  => $cron_startminute,
+    require => File["${script_path}/elasticsearch_backup.py"]
+  }
+
+  # make sure the old cronjob is deleted (this can be removed after a while)
+  file { '/etc/cron.d/elasticsearch':
+    ensure => absent,
   }
 }
