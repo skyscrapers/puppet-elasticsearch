@@ -8,11 +8,35 @@
 # [*name*]
 #   Name of snapshot repository.
 #
+# [*type*]
+#   Snapshot type. eg: 's3' or 'fs'
+#
 # [*location]
 #   Where to save the snapshots on the filesystem.
 #
+# [*bucket*]
+#   S3 bucket where to upload the snapshot. Used only if type == 's3'
+#
+# [*region*]
+#   AWS region where the S3 bucket is. Used only if type == 's3'
+#
+# [*base_path*]
+#   Directory inside the S3 bucket where to place the snapshots. Used only if type == 's3'
+#
 # [*script_path*]
 #   Where to place the backup script.
+#
+# [*cronjob*]
+#   Whether to setup a cronjob to take the snapshots or not. Valid values are: true and false
+#
+# [*cron_starthour*]
+#   At which hour the cron should run? Used only if cronjob == true
+#
+# [*cron_startminute*]
+#   At which minute the cron should run? Used only if cronjob == true
+#
+# [*snapshot_age*]
+#   Snapshot older than this age (days) will be deleted. Defaults to 14
 #
 # === Examples
 #
