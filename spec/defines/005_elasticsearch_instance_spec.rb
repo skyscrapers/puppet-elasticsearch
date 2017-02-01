@@ -152,9 +152,7 @@ describe 'elasticsearch::instance', :type => 'define' do
       it { should contain_file('/etc/elasticsearch/es-01/logging.yml') }
       it { should contain_file('/etc/elasticsearch/es-01/log4j2.properties') }
       it { should contain_file('/usr/share/elasticsearch/scripts') }
-      it { should contain_file('/usr/share/elasticsearch/shield') }
       it { should contain_file('/etc/elasticsearch/es-01/scripts').with(:target => '/usr/share/elasticsearch/scripts') }
-      it { should contain_file('/etc/elasticsearch/es-01/shield') }
     end
 
     context 'set in main class' do
@@ -176,9 +174,7 @@ describe 'elasticsearch::instance', :type => 'define' do
       it { should contain_file('/etc/elasticsearch-config/es-01/log4j2.properties') }
       it { should contain_file('/etc/elasticsearch-config/jvm.options') }
       it { should contain_file('/usr/share/elasticsearch/scripts') }
-      it { should contain_file('/usr/share/elasticsearch/shield') }
       it { should contain_file('/etc/elasticsearch-config/es-01/scripts').with(:target => '/usr/share/elasticsearch/scripts') }
-      it { should contain_file('/etc/elasticsearch-config/es-01/shield') }
     end
 
     context 'set in instance' do
@@ -195,9 +191,7 @@ describe 'elasticsearch::instance', :type => 'define' do
       it { should contain_file('/etc/elasticsearch-config/es-01/logging.yml') }
       it { should contain_file('/etc/elasticsearch-config/es-01/log4j2.properties') }
       it { should contain_file('/usr/share/elasticsearch/scripts') }
-      it { should contain_file('/usr/share/elasticsearch/shield') }
       it { should contain_file('/etc/elasticsearch-config/es-01/scripts').with(:target => '/usr/share/elasticsearch/scripts') }
-      it { should contain_file('/etc/elasticsearch-config/es-01/shield') }
     end
 
   end
@@ -427,6 +421,34 @@ describe 'elasticsearch::instance', :type => 'define' do
         it { should contain_file('/etc/elasticsearch/es-01/logging.yml').with(:source => 'puppet:///path/to/logging.yml', :content => nil) }
       end
 
+      context 'deprecation logging' do
+        let :params do {
+          :deprecation_logging => true
+        } end
+
+        it { should contain_file('/etc/elasticsearch/es-01/logging.yml').with_content(/^logger.deprecation: DEBUG, deprecation_log_file$/).with(:source=> nil) }
+        it { should contain_file('/etc/elasticsearch/es-01/logging.yml')
+          .with_content(
+            /deprecation_log_file:$/,
+            /type: dailyRollingFile$/,
+            /file: ${path.logs}\/\${cluster.name}_deprecation.log$/,
+            /datePattern: "'.'yyyy-MM-dd"$/,
+            /layout:$/,
+            /type: pattern$/,
+            /conversionPattern: "[%d{ISO8601}][%-5p][%-25c] %m%n"$/
+          ).with(:source=>nil)
+        }
+      end
+
+      context 'deprecation logging level' do
+        let :params do {
+          :deprecation_logging => true,
+          :deprecation_logging_level => 'INFO'
+        } end
+
+        it { should contain_file('/etc/elasticsearch/es-01/logging.yml').with_content(/^logger.deprecation: INFO, deprecation_log_file$/).with(:source=> nil) }
+      end
+
     end
 
     describe 'rollingFile apender' do
@@ -505,10 +527,12 @@ describe 'elasticsearch::instance', :type => 'define' do
     context 'inherited' do
       let(:pre_condition) {%q{
         class { 'elasticsearch':
+          security_plugin => 'shield',
           system_key => '/tmp/key'
         }
       }}
 
+      it { should contain_file('/etc/elasticsearch/es-01/shield') }
       it { should contain_file(
         '/etc/elasticsearch/es-01/shield/system_key'
       ).with_source(
@@ -517,12 +541,19 @@ describe 'elasticsearch::instance', :type => 'define' do
     end
 
     context 'from instance' do
+      let(:pre_condition) {%q{
+        class { 'elasticsearch':
+          security_plugin => 'x-pack',
+        }
+      }}
+
       let :params do {
         :system_key => 'puppet:///test/key'
       } end
 
+      it { should contain_file('/etc/elasticsearch/es-01/x-pack') }
       it { should contain_file(
-        '/etc/elasticsearch/es-01/shield/system_key'
+        '/etc/elasticsearch/es-01/x-pack/system_key'
       ).with_source(
         'puppet:///test/key'
       ) }

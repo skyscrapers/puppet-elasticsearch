@@ -5,9 +5,14 @@ Bugfix release including support for configuring the jvm.options file.
 
 #### Features
 * Support management of the global jvm.options configuration file.
+* X-Pack support added.
 * Restricted permissions to the elasticsearch.yml file.
+* Deprecation log configuration support added.
 
 #### Bugfixes
+* Fixed case in which index template could prepend an additional 'index.' to index settings.
+* Fixed a case in which dependency cycles could arise when pinning packages on CentOS.
+* No longer recursively change the Elasticsearch home directory's lib/ to the elasticsearch user.
 
 #### Changes
 * sysctl settings are no longer managed by the thias/sysctl module.
