@@ -446,7 +446,7 @@ define elasticsearch::instance(
       $instance_init_defaults = { }
     }
     $init_defaults_new = merge(
-      { 'DATA_DIR'  => '/usr/share/elasticsearch/data' },
+      { 'DATA_DIR'  => "${instance_init_defaults_main['ES_HOME']}/data" },
       $global_init_defaults,
       $instance_init_defaults_main,
       $instance_init_defaults
