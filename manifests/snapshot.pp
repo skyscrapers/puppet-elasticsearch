@@ -5,7 +5,7 @@
 #
 # === Parameters
 #
-# [*name*]
+# [*snapshot_name*]
 #   Name of snapshot repository.
 #
 # [*type*]
@@ -42,21 +42,21 @@
 #
 # * Configuration of elasticsearch backup
 #     class {'bacula::elasticsearch':
-#       name        => 'my_backup',
-#       location    => '/var/backup/elasticsearch',
-#       script_path => '/root'
+#       snapshot_name => 'my_backup',
+#       location      => '/var/backup/elasticsearch',
+#       script_path   => '/root'
 #     }
 #
 # * Configuration of elasticsearch backup with s3
 #     class {'bacula::elasticsearch':
-#       name        => 'my_backup',
-#       bucket      => 'my_bucket_name',
-#       region      => 'us-west',
-#       script_path => '/root'
+#       snapshot_name => 'my_backup',
+#       bucket        => 'my_bucket_name',
+#       region        => 'us-west',
+#       script_path   => '/root'
 #     }
 #
 class elasticsearch::snapshot(
-  $name             = undef,
+  $snapshot_name    = undef,
   $type             = $elasticsearch::params::snapshot_type,
   $location         = undef,
   $bucket           = undef,
@@ -84,8 +84,8 @@ class elasticsearch::snapshot(
   }
 
   exec { 'Add snapshot to elasticsearch':
-    command   => "curl -XPUT \'http://localhost:9200/_snapshot/${name}\' -d \'{\"type\": \"${type}\",\"settings\": ${settings}}\'",
-    unless    => "curl -XGET \'http://localhost:9200/_snapshot/_all\' | grep ${name}",
+    command   => "curl -XPUT \'http://localhost:9200/_snapshot/${snapshot_name}\' -d \'{\"type\": \"${type}\",\"settings\": ${settings}}\'",
+    unless    => "curl -XGET \'http://localhost:9200/_snapshot/_all\' | grep ${snapshot_name}",
     path      => '/usr/bin/:/bin/',
     logoutput => true,
   }
@@ -94,9 +94,9 @@ class elasticsearch::snapshot(
     "${script_path}/elasticsearch_backup.py":
       ensure => file,
       source => 'puppet:///modules/elasticsearch/usr/local/bin/elasticsearch_backup.py',
-      owner => root,
-      group => root,
-      mode => '0775';
+      owner  => root,
+      group  => root,
+      mode   => '0775';
   }
 
   if ( $type == 'fs' ) {
